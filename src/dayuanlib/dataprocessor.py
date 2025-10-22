@@ -24,16 +24,8 @@ class DataProcessor:
         'v25_ens','v50_ens','v75_ens'
     ]
     
-    FW_PG_TIMEOUT_SECONDS = 360
-    
-    def __init__(self,output_final,step,lat_range,lon_range,var_list,outpath):
-        self.output_final = output_final
-        self.step = step
-        self.lat_range = lat_range
-        self.lon_range = lon_range
-        self.var_list = var_list
-        self.outpath = outpath
-        
+    def __init__(self):
+        pass
       
     @staticmethod
     def initial_time2timestr(initial_time):
@@ -116,69 +108,30 @@ class DataProcessor:
         }
         return sub, coords
     
-    
-    
-    def process(self, timestr):
-        """
-        处理指定时间的数据
-        
-        Args:
-            timestr: 时间字符串，格式 "%Y-%m-%dT%H:%M:%S"
-            upload: 是否上传到SFTP服务器
-            skip_non_noon: 是否跳过非12:00:00的时间
-            
-        Returns:
-            final_save_path: 最终保存的zip文件路径，如果跳过则返回None
-        """
-        # 计算次日时间
-        
+    def load_arr(self,output_final, timestr):
         # 构建路径
-        arr_path = os.path.join(self.output_final, f'{timestr}.npy')
-        
-        
-        # 加载数据
+        arr_path = os.path.join(output_final, f'{timestr}.npy')
         logger.info(f"Loading array from {arr_path}")
         arr = np.load(arr_path)
-        
-        
+        return arr
+    
+    def process(self,arr,timestr,step="6:54", lat_range=(42, 33), lon_range=(109, 116), var_list=None,outpath='./processed'):
+        """处理数据的主方法"""
         sub, coords = self.quick_cut(
             arr,
-            step="6:54",
-            lat_range=(42, 33),
-            lon_range=(109, 116),
-            var_list=self.var_list
+            step=step,
+            lat_range=lat_range,
+            lon_range=lon_range,
+            var_list=var_list
         )
         
         # 转置和提取场站数据
         sub = sub.transpose(0, 2, 1, 3)  # (48, 29, 37, 27)
         # 创建 self.outpath 目录（如果不存在）
-        os.makedirs(self.outpath, exist_ok=True)
-        MID_SAVE_PATH = os.path.join(self.outpath, f'processed_{timestr}.npy')
+        os.makedirs(outpath, exist_ok=True)
+        MID_SAVE_PATH = os.path.join(outpath, f'processed_{timestr}.npy')
         np.save(MID_SAVE_PATH, sub)
         
 
 
-# if __name__ == "__main__":
-#     import argparse
-    
-#     parser = argparse.ArgumentParser()
-#     parser.add_argument("timestr", help="时间字符串，格式: YYYY-MM-DDTHH:MM:SS")
-#     args = parser.parse_args()
-#     output_final = '/data/hdd/output/output_final/'
-#     step = "6:54"
-#     lat_range = (42, 33)
-#     lon_range = (109, 116)
-#     var_list=['u10_fw','v10_fw','t2m_fw','z1000_fw','10v_hres','tcc_hres','ssr_hres','u10_fw','v10_fw','t2m_fw','z850_fw','z1000_fw','q850_fw','q1000_fw']
-#     outpath = '/data/hdd/PFMP/processed/'
-    
-#     processor = DataProcessor(
-#         output_final=output_final,
-#         step=step,
-#         lat_range=lat_range,
-#         lon_range=lon_range,
-#         var_list=var_list,
-#         outpath=outpath
-#     )
-#     processor.process(
-#         timestr=args.timestr)
 
