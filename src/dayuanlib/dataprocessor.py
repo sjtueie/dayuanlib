@@ -115,6 +115,7 @@ class DataProcessor:
         arr = np.load(arr_path)
         return arr
     
+    
     def process(self,arr,timestr,step="6:54", lat_range=(42, 33), lon_range=(109, 116), var_list=None,outpath='./processed'):
         """处理数据的主方法"""
         sub, coords = self.quick_cut(
