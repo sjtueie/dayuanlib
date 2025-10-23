@@ -19,7 +19,7 @@ class DataProcessor:
         '100u_hres','100v_hres','200u_hres','200v_hres','tp_hres','sp_hres','2t_hres','10u_hres',
         '10v_hres','tcc_hres','ssr_hres','u10_fw','v10_fw','t2m_fw','z850_fw','z1000_fw','q850_fw','q1000_fw',
         'u850_fw','u1000_fw','v850_fw','v1000_fw','t850_fw','t1000_fw','u10_pg','v10_pg','t2m_pg','z1000_pg',
-        'q1000_pg','t1000_pg','u1000_pg','v1000_pg','z850_pg','q850_pg','t850_pg','u850_pg','v850_pg',
+        'z850_pg', 'q1000_pg', 'q850_pg', 't1000_pg', 't850_pg', 'u1000_pg', 'u850_pg', 'v1000_pg','v850_pg',
         'u100_ens','v100_ens','t2m_ens','sp_ens','tp_ens','ssrd_ens','tcc_ens','u25_ens','u50_ens','u75_ens',
         'v25_ens','v50_ens','v75_ens'
     ]
@@ -107,8 +107,8 @@ class DataProcessor:
             "vars": [self.VARS[i] for i in v_idx]
         }
         return sub, coords
-    
-    def load_arr(self,output_final, timestr):
+
+    def load_arr(self, output_final, timestr):
         # 构建路径
         arr_path = os.path.join(output_final, f'{timestr}.npy')
         logger.info(f"Loading array from {arr_path}")
