@@ -42,7 +42,7 @@ processor.process(arr, timestr=timeStr,
 from dayuanlib import tools
 grid_finder = tools.GridFinder()
 # 现在返回的是index 不是经纬度 还需要更新一次
-lat_range, lon_range = grid_finder.get_lat_lon_ranges([[job_in.coordinate.lat, job_in.coordinate.lon]])
+lat_range, lon_range = grid_finder.get_lat_lon_ranges([[42, 109]])
 ```
 
 ### xmlzip
