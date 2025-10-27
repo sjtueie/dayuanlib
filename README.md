@@ -57,10 +57,4 @@ tools.xml2zip("script/2025-03-09_08_00_00.xml", "script/2025-03-09_08_00_00_exml
 
 ---
 
-## 开发者指南
-
-### 发布新版本
-
-查看 [RELEASING.md](RELEASING.md) 了解如何发布新版本到 PyPI。
-
-版本号由 git tag 自动管理，无需手动修改 `pyproject.toml`。
+版本号由 git tag 自动管理
