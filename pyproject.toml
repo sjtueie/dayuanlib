@@ -1,6 +1,6 @@
 [project]
 name = "dayuanlib"
-version = "0.3.1"
+dynamic = ["version"]
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.8.15"
@@ -8,3 +8,13 @@ dependencies = [
     "numpy>=1.24.4",
     "scipy>=1.10.1",
 ]
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/_version.py"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"

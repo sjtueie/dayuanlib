@@ -49,8 +49,18 @@ lat_range, lon_range = grid_finder.get_lat_lon_ranges([[job_in.coordinate.lat, j
 ```python
 from dayuanlib import tools
 
-zip2xml("script/2025-03-09_08_00_00.zip", "script/2025-03-09_08_00_00.xml")
+tools.zip2xml("script/2025-03-09_08_00_00.zip", "script/2025-03-09_08_00_00.xml")
 
-xml2zip("script/2025-03-09_08_00_00.xml", "script/2025-03-09_08_00_00_exml.zip")
+tools.xml2zip("script/2025-03-09_08_00_00.xml", "script/2025-03-09_08_00_00_exml.zip")
 
 ```
+
+---
+
+## 开发者指南
+
+### 发布新版本
+
+查看 [RELEASING.md](RELEASING.md) 了解如何发布新版本到 PyPI。
+
+版本号由 git tag 自动管理，无需手动修改 `pyproject.toml`。
