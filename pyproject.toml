@@ -13,7 +13,10 @@ dependencies = [
 source = "vcs"
 
 [tool.hatch.build.hooks.vcs]
-version-file = "src/_version.py"
+version-file = "src/dayuanlib/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dayuanlib"]
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
