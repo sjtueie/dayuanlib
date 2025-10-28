@@ -6,6 +6,10 @@
 <a href="https://pypi.org/project/dayuanlib/" target="_blank">
     <img src="https://img.shields.io/pypi/v/dayuanlib?color=%2334D058&label=pypi%20package" alt="Package version">
 </a>
+<a href="https://pypi.org/project/dayuanlib/" target="_blank">
+    <img src="https://img.shields.io/pypi/pyversions/dayuanlib.svg?color=%2334D058" alt="Supported Python versions">
+</a>
+
 </p>
 
 
