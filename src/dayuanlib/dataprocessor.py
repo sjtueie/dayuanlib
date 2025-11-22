@@ -235,42 +235,65 @@ class DataProcessor:
 
         return sub, coords
 
-    def quick_cut_8x8(self,arr,
-                  step="0:150",
-                  center_lat=None,
-                  center_lon=None,
-                  var_list=VARS,
-                  squeeze=False):
+    def quick_cut_8x8(
+        self,
+        arr,
+        coords,
+        n=8,
+        step="0:150",
+        var_list=None,
+    ):
         """
-        从 0.25° 网格数据中切 8×8 的子网格。
-        以指定点为中心，向四周各延伸 1° (4个网格点)，形成 8×8 网格。
-        
+        从 0.25° 网格数据中，为若干目标经纬度坐标提取 n×n 的最优子网格 patch。
+
+        逻辑：
+        - 对每个目标点，在所有可行的 n×n 正方形窗口中，
+          计算“四个角点到目标点距离的方差”，选择方差最小的那个窗口
+          （对应 GridFinder.find_optimal_square_grid 的逻辑）。
+        - 再根据这些最优窗口，从原始数据中批量提取 patch
+          （对应 GridFinder.batch_extract_patches 的逻辑）。
+
         参数：
         - arr: 原始数据数组，shape=(t, y, x, v)，其中 (y,x,v)=(145,241,50)
+        - coords: 目标经纬度列表，形如 [[lat1, lon1], [lat2, lon2], ...]
+        - n: 正方形网格边长（默认 8，即 8×8）
         - step: 时间步切片，支持 "i:j" 或 (i,j) 或 slice 对象
-        - center_lat: 中心纬度（必需）
-        - center_lon: 中心经度（必需）
-        - var_list: 变量名列表
-        - squeeze: 是否压缩时间/空间维度为1的情况
-        
+        - var_list: 变量名列表；为 None 时使用 self.VARS
+
         返回：
-        - sub: 切片后的数据，shape=(t, 8, 8, v) 或 squeeze 后的形状
-        - coords: 坐标字典 {"lat": array, "lon": array, "step": array, "vars": list}
+        - patches: shape = (N, T, n*n, V_sel)
+            N: 目标点个数
+            T: 时间步个数（切片后）
+            n*n: 展平后的网格点（如 8×8=64）
+            V_sel: 选择的变量个数
+        - info: 字典，包含：
+            - "optimal_squares": shape=(N, n*n, 2)，每个网格点的 (y,x) 索引
+            - "step": 时间步索引数组
+            - "vars": 实际变量名列表
+            - "centers": 输入的经纬度列表
+            - "lat_patch": shape=(N, n, n) 对应网格的纬度
+            - "lon_patch": shape=(N, n, n) 对应网格的经度
         """
         nt, ny, nx, nv = arr.shape
         assert (ny, nx, nv) == (145, 241, 50), f"形状不符：{arr.shape}"
-        
-        if center_lat is None or center_lon is None:
-            raise ValueError("必须提供 center_lat 和 center_lon")
-        
-        # 构造坐标
+
+        coords = np.atleast_2d(np.asarray(coords, dtype=float))
+        N = coords.shape[0]
+
+        # ---------------- 1. 构造经纬度坐标 ----------------
         dlat = 0.25
         dlon = 0.25
-        lat0, lon0 = 54.0, 74.0
+        lat0, lon0 = 54.0, 74.0   # 与 lat_range=(54,18), lon_range=(74,134) 一致
+
+        # 1D 坐标
         lat = lat0 - dlat * np.arange(ny)   # 降序：54, 53.75, ..., 18
         lon = lon0 + dlon * np.arange(nx)   # 升序：74, ..., 134
-        
-        # 时间步切片
+
+        # 2D 坐标网格，方便后面拿 patch 的经纬度
+        lat2d = np.repeat(lat[:, None], nx, axis=1)   # (ny, nx)
+        lon2d = np.repeat(lon[None, :], ny, axis=0)   # (ny, nx)
+
+        # ---------------- 2. 时间步切片 ----------------
         if isinstance(step, str):
             a, b = step.split(':')
             t_sl = slice(int(a), int(b))
@@ -280,58 +303,105 @@ class DataProcessor:
             t_sl = step
         else:
             raise ValueError("step 需为 'i:j'、(i,j) 或 slice")
-        
-        # 计算中心点的网格索引
-        y_center_f = (lat0 - float(center_lat)) / dlat
-        x_center_f = (float(center_lon) - lon0) / dlon
-        
-        y_center = int(np.rint(y_center_f))
-        x_center = int(np.rint(x_center_f))
-        
-        # 计算 8×8 网格的起止索引（向四周各延伸 4 个网格点）
-        y_start = y_center - 4
-        y_end = y_center + 4  # Python 切片右端开区间，所以是 +4
-        x_start = x_center - 4
-        x_end = x_center + 4
-        
-        # 边界保护
-        if not (0 <= y_start and y_end <= ny and 0 <= x_start and x_end <= nx):
-            raise ValueError(
-                f"8×8 网格超出范围。中心点: ({center_lat}, {center_lon}), "
-                f"索引: ({y_center}, {x_center}), "
-                f"需求范围: y=[{y_start}:{y_end}], x=[{x_start}:{x_end}], "
-                f"有效范围: y=[0:{ny}], x=[0:{nx}]"
-            )
-        
-        y_sl = slice(y_start, y_end)
-        x_sl = slice(x_start, x_end)
-        
-        # 变量索引
-        name2idx = {n: i for i, n in enumerate(self.VARS)}
-        missing = [n for n in var_list if n not in name2idx]
-        if missing:
-            raise ValueError(f"未知变量: {missing}\n可用变量: {self.VARS}")
-        v_idx = [name2idx[n] for n in var_list]
-        
-        # 切片
-        sub = arr[t_sl, y_sl, x_sl, :][..., v_idx]
-        
-        # 验证是否确实是 8×8
-        assert sub.shape[1:3] == (8, 8), f"切片后不是 8×8：{sub.shape}"
-        
-        # 构造坐标
+
+        # 安全裁剪时间范围
+        t_sl = slice(
+            0 if t_sl.start is None else max(0, t_sl.start),
+            nt if t_sl.stop  is None else min(nt, t_sl.stop),
+        )
+        T = t_sl.stop - t_sl.start
         step_idx = np.arange(nt)[t_sl]
-        lat_sel = lat[y_sl]
-        lon_sel = lon[x_sl]
-        coords = {
-            "lat": lat_sel,
-            "lon": lon_sel,
-            "step": step_idx,
-            "vars": [self.VARS[i] for i in v_idx],
-            "center": (float(center_lat), float(center_lon)),
+
+        # ---------------- 3. 找每个目标点的最优 n×n 正方形 ----------------
+        optimal_squares = []  # 每个元素：shape=(n*n, 2)，存 (y, x)
+
+        for k in range(N):
+            target_lat, target_lon = coords[k]
+            best_var = None
+            best_top = None  # (i, j) 左上角
+
+            # 穷举所有 n×n 窗口左上角索引 (i, j)
+            for i in range(ny - n + 1):
+                for j in range(nx - n + 1):
+                    # 四个角点经纬度
+                    corners = [
+                        (lat[i],         lon[j]),         # 左上
+                        (lat[i],         lon[j + n - 1]), # 右上
+                        (lat[i + n - 1], lon[j]),         # 左下
+                        (lat[i + n - 1], lon[j + n - 1])  # 右下
+                    ]
+
+                    # 计算距离的平方（不开方即可，不影响方差排序）
+                    d2 = []
+                    for (clat, clon) in corners:
+                        d2.append((target_lat - clat) ** 2 + (target_lon - clon) ** 2)
+                    d2 = np.asarray(d2)
+                    var = np.var(d2)
+
+                    if (best_var is None) or (var < best_var):
+                        best_var = var
+                        best_top = (i, j)
+
+            if best_top is None:
+                raise RuntimeError("未找到最优网格（理论上不应发生）")
+
+            i0, j0 = best_top
+            # 生成该 n×n 方格内所有 (y, x) 索引，展平为 n*n 个点
+            square_idx = [(i0 + di, j0 + dj) for di in range(n) for dj in range(n)]
+            optimal_squares.append(square_idx)
+
+        optimal_squares = np.asarray(optimal_squares, dtype=int)  # (N, n*n, 2)
+
+        # ---------------- 4. 变量维度选择 ----------------
+        all_vars = self.VARS
+        if var_list is None:
+            var_list = all_vars
+
+        name2idx = {n_: i for i, n_ in enumerate(all_vars)}
+        missing = [n_ for n_ in var_list if n_ not in name2idx]
+        if missing:
+            raise ValueError(f"未知变量: {missing}\n可用变量: {all_vars}")
+        v_idx = [name2idx[n_] for n_ in var_list]
+
+        # ---------------- 5. 按 optimal_squares 批量提取 patch ----------------
+        # 对应你原来的 batch_extract_patches:
+        # data = data[:, optimal_squares[:, :, 0], optimal_squares[:, :, 1], :]
+        # data = np.swapaxes(data, 1, 0)
+        data_sel = arr[t_sl, :, :, :]  # (T, ny, nx, nv)
+
+        y_idx = optimal_squares[:, :, 0]  # (N, n*n)
+        x_idx = optimal_squares[:, :, 1]  # (N, n*n)
+
+        # 利用广播：先在时间维切，再用 (N, n*n) 的索引
+        # 结果形状： (T, N, n*n, nv)
+        data_patches = data_sel[:, y_idx, x_idx, :]
+
+        # swapaxes(1,0) → (N, T, n*n, nv)
+        data_patches = np.swapaxes(data_patches, 1, 0)
+
+        # 再选变量维度：V_sel
+        data_patches = data_patches[..., v_idx]  # (N, T, n*n, V_sel)
+
+        # ---------------- 6. 附带每个 patch 的经纬度网格 ----------------
+        # lat_patch[k] 取出该目标点对应 n×n 网格的纬度
+        lat_patch = np.empty((N, n*n), dtype=float)
+        lon_patch = np.empty((N, n*n), dtype=float)
+        for k in range(N):
+            yi = optimal_squares[k, :, 0]
+            xi = optimal_squares[k, :, 1]
+            lat_patch[k] = lat2d[yi, xi]
+            lon_patch[k] = lon2d[yi, xi]
+
+        lat_patch = lat_patch.reshape(N, n, n)
+        lon_patch = lon_patch.reshape(N, n, n)
+
+        info = {
+            "optimal_squares": optimal_squares,   # (N, n*n, 2)
+            "step": step_idx,                     # (T,)
+            "vars": [all_vars[i] for i in v_idx],
+            "centers": coords,                    # (N, 2) 输入的经纬度
+            "lat_patch": lat_patch,               # (N, n, n)
+            "lon_patch": lon_patch,               # (N, n, n)
         }
-        
-        # return sub, coords
-        if squeeze and (len(lat_sel)==1) and (len(lon_sel)==1):
-            sub = np.squeeze(sub, axis=(1,2)) 
-        return sub, coords
+
+        return data_patches, info
