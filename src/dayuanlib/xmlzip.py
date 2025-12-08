@@ -18,6 +18,18 @@ def get_weather_data(date):
     # 删除 /data/weather/date_str.npy
     os.remove(f"/data/weather/{date_str}.npy")
 
+def npy2zip(npy_file, zip_file):
+    """
+    Compress a .npy file into a .zip file.
+    
+    Args:
+        npy_file (str): Path to the input .npy file
+        zip_file (str): Path to the output .zip file
+    """
+    with zipfile.ZipFile(zip_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        zipf.write(npy_file, os.path.basename(npy_file))
+    print(f"Successfully compressed {npy_file} to {zip_file}")
+
 def zip2xml(zip_file, xml_file):
     """
     Convert a power system data zip file to XML format according to E-language specification.
